@@ -4,6 +4,8 @@ const admin = require('../config/firebase');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const authenticateUser = require('../middlewares/AuthUser');
+
 
 const router = express.Router();
 
@@ -198,37 +200,6 @@ router.post('/verify-reset-otp', async (req, res) => {
   }
 });
 
-// router.post('/update-password', async (req, res) => {
-//   const { email, password } = req.body;
-
-//   if (!email) {
-//     return res.status(400).send('Email cannot be empty');
-//   }
-//   if (!password || password.length < 6) {
-//     return res.status(400).send('Password must be at least 6 characters long');
-//   }
-
-//   try {
-//     const userRecord = await admin.auth().getUserByEmail(email);
-//     const encodedEmail = encodeEmailForFirebaseKey(email);
-
-//     // Update password in Firebase Authentication
-//     await admin.auth().updateUser(userRecord.uid, { password });
-
-//     // Update password in Realtime Database (optional, for your own user management)
-//     await admin.database().ref(`users/${userRecord.uid}`).update({ password });
-
-//     // Remove the OTP from the Realtime Database
-//     await admin.database().ref(`resetOtps/${encodedEmail}`).remove();
-
-//     res.status(200).send('Password reset successfully');
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).send('Error resetting password');
-//   }
-// });
-
-
 router.post('/update-password', async (req, res) => {
   const saltRounds = 10; 
   const { email, password } = req.body;
@@ -328,8 +299,6 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-
-
 // Login endpoint
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -371,6 +340,26 @@ router.post('/login', async (req, res) => {
       return res.status(404).send('User not found');
     }
     res.status(500).send('Error logging in');
+  }
+});
+
+// User Data Endpoint
+router.get('/user', authenticateUser, async (req, res) => {
+  const userId = req.user.uid;
+
+  try {
+    const userSnapshot = await admin.database().ref(`users/${userId}`).once('value');
+    const userData = userSnapshot.val();
+
+    if (!userData) {
+      return res.status(404).send('User not found');
+    }
+    delete userData.password;
+
+    res.status(200).json(userData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error fetching user data');
   }
 });
 
